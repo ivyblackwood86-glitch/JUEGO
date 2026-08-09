@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examen sorpresa!</title>
+    <style>    
+        * { box-sizing: border-box; }
+        :root {
+            --bg: #111528;
+            --panel: #1a2036;
+            --panel-border: #2e3859;
+            --cell: #242c47;
+            --pink-accent: #ff2a8d;
+            --purple-accent: #9d50ff;
+            --cyan-accent: #00e5ff;
+            --green: #00e676;
+            --red: #ff3d71;
+            --white: #ffffff;
+            --text-muted: #a0aec0;
+            --cell-size: 28px;
+            --gap: 2px;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at 50% 0%, #201a44 0%, #111528 60%, #0a0d1a 100%);
+            color: var(--white);
+        }
+
+        .app { width: min(1350px, 96%); margin: auto; padding: 20px 0 40px; }
+
+        /* CRONÓMETRO */
+        .top-timer { position: sticky; top: 10px; z-index: 100; display: flex; justify-content: center; margin-bottom: 20px; }
+        .timer-box {
+            min-width: 240px; padding: 10px 24px; border-radius: 50px;
+            background: rgba(26, 32, 54, 0.95); border: 2px solid var(--purple-accent);
+            box-shadow: 0 0 20px rgba(157, 80, 255, 0.3); text-align: center; backdrop-filter: blur(10px);
+        }
+        .timer-label { color: var(--cyan-accent); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; }
+        .global-timer { font-size: 30px; line-height: 1.1; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--white); }
+        .global-timer.running { animation: timerPulse 1s infinite alternate; }
+        @keyframes timerPulse { from { text-shadow: 0 0 5px var(--cyan-accent); } to { text-shadow: 0 0 15px var(--pink-accent); } }
+
+        /* HEADER */
+        .header { text-align: center; margin-bottom: 25px; }
+        .header h1 { margin: 0; font-size: clamp(32px, 5vw, 54px); letter-spacing: 2px; font-weight: 900; background: linear-gradient(90deg, var(--cyan-accent), var(--pink-accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        /* LAYOUT & PANELES */
+        .layout { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 22px; align-items: start; }
+        .panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 20px; box-shadow: 0 15px 35px rgba(0, 0, 0, .4); }
+
+        /* TABLERO */
+        .board-panel { padding: 20px; }
+        .board-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .board-title { font-size: 18px; font-weight: 800; color: var(--cyan-accent); }
+        .board-status { color: var(--text-muted); font-size: 12px; text-align: right; }
+        .board-area {
+            display: flex; justify-content: center; align-items: center; width: 100%; padding: 15px;
+            border-radius: 16px; background: #131726; border: 1px solid #232a42; overflow-x: auto;
+        }
+        .board {
+            display: grid; grid-template-columns: repeat(24, var(--cell-size)); grid-template-rows: repeat(26, var(--cell-size));
+            gap: var(--gap); width: calc(24 * var(--cell-size) + 23 * var(--gap)); height: calc(26 * var(--cell-size) + 25 * var(--gap));
+        }
+
+        /* CELDAS */
+        .cell {
+            position: relative; width: var(--cell-size); height: var(--cell-size);
+            background: var(--cell); border: 1px solid #323d5e; border-radius: 5px;
+            transition: all .15s ease;
+        }
+        .cell.empty { background: transparent; border-color: transparent; }
+        .cell input {
+            width: 100%; height: 100%; padding: 0; border: 0; outline: none; background: transparent;
+            color: var(--white); text-align: center; font-size: 15px; font-weight: 900; text-transform: uppercase;
+        }
+        .cell.selected { background: #322d54; border-color: var(--purple-accent); }
+        .cell.active { background: #4a285d; border-color: var(--pink-accent); transform: scale(1.1); z-index: 10; box-shadow: 0 0 10px rgba(255, 42, 141, 0.5); }
+        .cell.correct, .cell.correct input { background: rgba(0, 230, 118, .25); border-color: var(--green); color: var(--green); }
+        .cell.incorrect, .cell.incorrect input { background: rgba(255, 61, 113, .25); border-color: var(--red); color: var(--red); }
+        .cell.locked { background: rgba(0, 230, 118, .15); border-color: var(--green); }
+        .cell.locked input { color: var(--green); cursor: default; }
+        .cell-number { position: absolute; left: 3px; top: 2px; font-size: 8px; font-weight: 800; line-height: 1; color: var(--cyan-accent); pointer-events: none; z-index: 3; }
+
+        /* PLAYER */
+        .player { margin-top: 16px; padding: 15px; border-radius: 14px; background: linear-gradient(135deg, #252347, #1a1e36); border: 1px solid #3b376b; }
+        .player-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .song-info { min-width: 0; }
+        .song-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--cyan-accent); font-weight: 700; }
+        .song-name { margin-top: 3px; font-weight: 800; font-size: 15px; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .play-main { width: 45px; height: 45px; flex-shrink: 0; border: 0; border-radius: 50%; background: linear-gradient(135deg, var(--pink-accent), var(--purple-accent)); color: white; cursor: pointer; font-size: 18px; box-shadow: 0 4px 15px rgba(255, 42, 141, 0.4); transition: transform .15s; }
+        .play-main:hover { transform: scale(1.08); }
+        .clip-bar { height: 6px; margin-top: 12px; background: #2c334d; border-radius: 20px; overflow: hidden; }
+        .clip-bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--cyan-accent), var(--pink-accent)); transition: width .1s linear; }
+        .clip-info { margin-top: 8px; display: flex; justify-content: space-between; color: var(--text-muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .player-help { margin-top: 8px; color: #7f8fa6; font-size: 11px; line-height: 1.4; }
+
+        /* RESULTADOS Y STATS */
+        .result { min-height: 36px; margin-top: 12px; display: flex; justify-content: center; align-items: center; text-align: center; font-size: 12px; font-weight: 700; border-radius: 10px; padding: 0 8px; }
+        .result.good { background: rgba(0, 230, 118, .15); border: 1px solid var(--green); color: var(--green); }
+        .result.bad { background: rgba(255, 61, 113, .15); border: 1px solid var(--red); color: #ff809b; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+        .stat { padding: 10px; text-align: center; background: #131726; border: 1px solid #28304a; border-radius: 12px; }
+        .stat-number { font-size: 18px; font-weight: 900; color: var(--cyan-accent); }
+        .stat-label { margin-top: 2px; color: var(--text-muted); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+
+        /* PISTAS */
+        .clues-panel { padding: 20px; }
+        .clues-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+        .music-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: linear-gradient(135deg, var(--purple-accent), var(--pink-accent)); color: var(--white); font-size: 20px; }
+        .clues-heading h2 { margin: 0; font-size: 22px; font-weight: 800; }
+        .section-title { margin: 18px 0 10px; color: var(--cyan-accent); font-size: 11px; font-weight: 900; letter-spacing: 1.5px; }
+        .clue { display: grid; grid-template-columns: 42px 1fr; gap: 10px; align-items: center; padding: 10px; margin-bottom: 8px; border-radius: 12px; background: #1f263d; border: 1px solid #2d3757; cursor: pointer; transition: all .15s; }
+        .clue:hover { background: #283250; transform: translateY(-2px); }
+        .clue.active { background: #382c54; border-color: var(--pink-accent); box-shadow: 0 4px 12px rgba(255, 42, 141, 0.2); }
+        .clue.completed { border-color: var(--green); background: #162a2a; }
+        .clue-play { width: 38px; height: 38px; border: 0; border-radius: 50%; background: var(--cyan-accent); color: #0a0d1a; cursor: pointer; font-size: 14px; font-weight: 900; transition: transform .1s; }
+        .clue-play:hover { transform: scale(1.1); }
+        .clue-title { display: flex; gap: 6px; align-items: center; }
+        .clue-number { font-size: 14px; font-weight: 900; color: var(--white); }
+        .clue-direction { font-size: 9px; color: var(--pink-accent); font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        .clue-text { margin-top: 3px; color: #cbd5e1; font-size: 11px; line-height: 1.35; }
+        .clue-time { display: none; margin-top: 4px; color: var(--green); font-size: 10px; font-weight: 800; }
+        .clue.completed .clue-time { display: block; }
+
+        /* FINAL Y RESET */
+        .finish { display: none; margin-top: 15px; padding: 20px; text-align: center; border-radius: 16px; background: linear-gradient(135deg, #32214d, #1a2036); border: 2px solid var(--pink-accent); }
+        .finish.show { display: block; animation: appear .35s ease; }
+        @keyframes appear { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .finish h2 { margin: 0; font-size: 22px; color: var(--pink-accent); }
+        .finish-time { margin-top: 8px; font-size: 32px; font-weight: 900; color: var(--cyan-accent); }
+        .finish p { margin: 6px 0 0; color: var(--text-muted); font-size: 13px; line-height: 1.4; }
+        .reset { width: 100%; margin-top: 12px; padding: 12px; border-radius: 12px; border: 1px solid var(--panel-border); background: #242c47; color: var(--white); cursor: pointer; font-size: 12px; font-weight: 800; transition: background .15s; }
+        .reset:hover { background: #2e3859; }
+
+        /* RESPONSIVE */
+        @media (max-width: 1150px) { :root { --cell-size: 25px; } .layout { grid-template-columns: minmax(0, 1fr) 330px; } }
+        @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .clues-panel { order: 2; } .board-panel { order: 1; } }
+        @media (max-width: 650px) {
+            :root { --cell-size: 21px; --gap: 1px; }
+            .app { width: 98%; }
+            .board-panel { padding: 12px; }
+            .board-area { padding: 8px; }
+            .board { transform: scale(.96); transform-origin: center; }
+            .timer-box { min-width: 190px; }
+            .global-timer { font-size: 26px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app">
+    <div class="top-timer">
+        <div class="timer-box">
+            <div class="timer-label">Tiempo corriendo</div>
+            <div class="global-timer" id="globalTimer">00:00</div>
+        </div>
+    </div>
+
+    <header class="header">
+        <h1>¡Examen sorpresa!</h1>
+    </header>
+
+    <main class="layout">
+        <section class="panel board-panel">
+            <div class="board-heading">
+                <div class="board-title">Crucigrama</div>
+                <div class="board-status" id="boardStatus">Haz clic en una pista para empezar</div>
+            </div>
+            <div class="board-area">
+                <div class="board" id="board"></div>
+            </div>
+
+            <div class="player">
+                <div class="player-row">
+                    <div class="song-info">
+                        <div class="song-label">Pista actual</div>
+                        <div class="song-name" id="songName">Selecciona una pista</div>
+                    </div>
+                    <button class="play-main" id="playMain" type="button">▶</button>
+                </div>
+                <div class="clip-bar">
+                    <div class="clip-bar-fill" id="clipBarFill"></div>
+                </div>
+                <div class="clip-info">
+                    <span>Fragmento</span>
+                    <span id="clipTime">0:00 / 0:00</span>
+                </div>
+                <div class="player-help">
+                    Dale a Play para escuchar el fragmento y arrancar el reloj.
+                </div>
+            </div>
+
+            <div class="result" id="result"></div>
+
+            <div class="stats">
+                <div class="stat"><div class="stat-number" id="completedCount">0</div><div class="stat-label">Listas</div></div>
+                <div class="stat"><div class="stat-number" id="attemptCount">0</div><div class="stat-label">Intentos</div></div>
+                <div class="stat"><div class="stat-number" id="listenCount">0</div><div class="stat-label">Escuchas</div></div>
+            </div>
+
+            <div class="finish" id="finish">
+                <h2>¡Lo lograste! ¡Aprobado!</h2>
+                <div class="finish-time" id="finishTime">00:00</div>
+                <p>Creo que fui demasiado generosa con las pistas... Habrá que subir la dificultad para la próxima.</p>
+            </div>
+
+            <button class="reset" id="reset">Reiniciar crucigrama</button>
+        </section>
+
+        <aside class="panel clues-panel">
+            <div class="clues-heading">
+                <div class="music-icon">♪</div>
+                <h2>Pistas</h2>
+            </div>
+            <div class="section-title">HORIZONTALES</div>
+            <div id="acrossClues"></div>
+            <div class="section-title">VERTICALES</div>
+            <div id="downClues"></div>
+        </aside>
+    </main>
+</div>
+
+<script>
+// CONFIGURACIÓN DE PALABRAS 
+const WORDS = [
+    { 
+        id: "adults", number: 1, direction: "across", answer: "THEADULTSARETALKING", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 5, col: 2, audioUrl: "adults.mp3" 
+    },
+    { 
+        id: "selfless", number: 2, direction: "down", answer: "SELFLESS", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 3, col: 8, audioUrl: "selfless.mp3" 
+    },
+    { 
+        id: "door", number: 3, direction: "down", answer: "ATTHEDOOR", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 5, col: 15, audioUrl: "door.mp3" 
+    },
+    { 
+        id: "someday", number: 4, direction: "across", answer: "SOMEDAY", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 10, col: 8, audioUrl: "someday.mp3" 
+    },
+    { 
+        id: "yolo", number: 5, direction: "down", answer: "YOUONLYLIVEONCE", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 10, col: 14, audioUrl: "yolo.mp3" 
+    },
+    { 
+        id: "reptilia", number: 6, direction: "across", answer: "REPTILIA", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 15, col: 9, audioUrl: "reptilia.mp3" 
+    },
+    { 
+        id: "bad", number: 7, direction: "across", answer: "BADDECISIONS", 
+        clue: "Escucha el fragmento de audio.", 
+        row: 20, col: 10, audioUrl: "bad.mp3" 
+    }
+];
+
+const ROWS = 26, COLS = 24;
+
+const board = document.getElementById("board");
+const boardStatus = document.getElementById("boardStatus");
+const songName = document.getElementById("songName");
+const playMain = document.getElementById("playMain");
+const globalTimer = document.getElementById("globalTimer");
+const clipBarFill = document.getElementById("clipBarFill");
+const clipTime = document.getElementById("clipTime");
+const result = document.getElementById("result");
+const acrossClues = document.getElementById("acrossClues");
+const downClues = document.getElementById("downClues");
+const completedCount = document.getElementById("completedCount");
+const attemptCount = document.getElementById("attemptCount");
+const listenCount = document.getElementById("listenCount");
+const finish = document.getElementById("finish");
+const finishTime = document.getElementById("finishTime");
+const resetButton = document.getElementById("reset");
+
+let selectedWord = null, cellMap = new Map(), currentCells = [];
+let timerInterval = null, timerStarted = false, elapsedSeconds = 0;
+let attempts = 0, listens = 0, completed = 0;
+let audioContext = null;
+let tickToggle = false;
+
+const currentAudio = new Audio();
+
+currentAudio.ontimeupdate = () => {
+    if (!currentAudio.duration) return;
+    const current = currentAudio.currentTime;
+    const total = currentAudio.duration;
+    clipBarFill.style.width = `${(current / total) * 100}%`;
+    clipTime.textContent = `${formatSeconds(current)} / ${formatSeconds(total)}`;
+};
+
+currentAudio.onended = () => {
+    clipBarFill.style.width = "100%";
+    if (currentAudio.duration) {
+        clipTime.textContent = `${formatSeconds(currentAudio.duration)} / ${formatSeconds(currentAudio.duration)}`;
+    }
+};
+
+const completedWords = new Set();
+const lockedCells = new Set();
+
+const cellKey = (row, col) => `${row}-${col}`;
+
+function getWordCells(word) {
+    return Array.from(word.answer).map((letter, i) => ({
+        row: word.direction === "across" ? word.row : word.row + i,
+        col: word.direction === "across" ? word.col + i : word.col,
+        letter
+    }));
+}
+
+function buildBoard() {
+    board.innerHTML = "";
+    cellMap.clear();
+    const occupied = new Map();
+    const fragment = document.createDocumentFragment();
+
+    WORDS.forEach(w => getWordCells(w).forEach(c => occupied.set(cellKey(c.row, c.col), c.letter)));
+
+    for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+            const key = cellKey(row, col);
+            const cell = document.createElement("div");
+            cell.className = "cell";
+
+            if (!occupied.has(key)) {
+                cell.classList.add("empty");
+                fragment.appendChild(cell);
+                continue;
+            }
+
+            const input = document.createElement("input");
+            input.type = "text";
+            input.maxLength = 1;
+            input.autocomplete = "off";
+            input.spellcheck = false;
+            input.dataset.row = row;
+            input.dataset.col = col;
+
+            const starts = WORDS.filter(w => w.row === row && w.col === col);
+            if (starts.length > 0) {
+                const number = document.createElement("span");
+                number.className = "cell-number";
+                number.textContent = starts.map(w => w.number).join(",");
+                cell.appendChild(number);
+            }
+
+            cell.appendChild(input);
+            fragment.appendChild(cell);
+            cellMap.set(key, { element: cell, input });
+
+            cell.addEventListener("click", () => selectWordFromCell(row, col));
+            input.addEventListener("input", handleInput);
+            input.addEventListener("keydown", handleKeyDown);
+        }
+    }
+    board.appendChild(fragment);
+}
+
+function selectWordFromCell(row, col) {
+    const matching = WORDS.filter(w => getWordCells(w).some(c => c.row === row && c.col === col));
+    if (!matching.length) return;
+
+    if (selectedWord && matching.includes(selectedWord) && matching.length > 1) {
+        selectWord(matching[(matching.indexOf(selectedWord) + 1) % matching.length]);
+    } else {
+        selectWord(matching[0]);
+    }
+}
+
+function selectWord(word) {
+    selectedWord = word;
+    currentCells = getWordCells(word);
+    clearHighlights();
+
+    currentCells.forEach(c => cellMap.get(cellKey(c.row, c.col))?.element.classList.add("selected"));
+
+    const dirText = word.direction === "across" ? "Horizontal" : "Vertical";
+    
+    boardStatus.textContent = `Pista ${word.number} (${dirText})`;
+    songName.textContent = `Pista ${word.number} · ${dirText}`;
+
+    clipTime.textContent = "0:00 / 0:00";
+    clipBarFill.style.width = "0%";
+
+    let target = currentCells.find(c => {
+        const data = cellMap.get(cellKey(c.row, c.col));
+        return data && data.input.value === "" && !lockedCells.has(cellKey(c.row, c.col));
+    }) || currentCells[0];
+
+    if (target) {
+        const data = cellMap.get(cellKey(target.row, target.col));
+        if (data) {
+            data.element.classList.add("active");
+            if (!lockedCells.has(cellKey(target.row, target.col))) data.input.focus();
+        }
+    }
+
+    document.querySelectorAll(".clue").forEach(c => c.classList.remove("active"));
+    document.querySelector(`.clue[data-id="${word.id}"]`)?.classList.add("active");
+    result.textContent = "";
+    result.className = "result";
+}
+
+function clearHighlights() {
+    cellMap.forEach(d => d.element.classList.remove("selected", "active"));
+}
+
+function handleInput(e) {
+    if (!selectedWord) return;
+    const input = e.target;
+    const key = cellKey(Number(input.dataset.row), Number(input.dataset.col));
+
+    if (lockedCells.has(key)) return;
+
+    input.value = input.value.replace(/[^a-zA-ZÁÉÍÓÚÜÑ]/g, "").slice(0, 1).toUpperCase();
+
+    if (input.value !== "") moveNext(input);
+    if (isWordComplete(selectedWord)) setTimeout(checkWord, 120);
+}
+
+function handleKeyDown(e) {
+    if (!selectedWord) return;
+    if (e.key === "Enter") {
+        e.preventDefault();
+        checkWord();
+    } else if (e.key === "Backspace" && e.target.value === "") {
+        e.preventDefault();
+        movePrevious(e.target);
+    }
+}
+
+function moveNext(input) {
+    const row = Number(input.dataset.row), col = Number(input.dataset.col);
+    const idx = currentCells.findIndex(c => c.row === row && c.col === col);
+    if (idx === -1) return;
+
+    for (let i = idx + 1; i < currentCells.length; i++) {
+        const data = cellMap.get(cellKey(currentCells[i].row, currentCells[i].col));
+        if (data && !lockedCells.has(cellKey(currentCells[i].row, currentCells[i].col))) {
+            clearActive();
+            data.element.classList.add("active");
+            data.input.focus();
+            return;
+        }
+    }
+}
+
+function movePrevious(input) {
+    const row = Number(input.dataset.row), col = Number(input.dataset.col);
+    const idx = currentCells.findIndex(c => c.row === row && c.col === col);
+
+    for (let i = idx - 1; i >= 0; i--) {
+        const data = cellMap.get(cellKey(currentCells[i].row, currentCells[i].col));
+        if (data && !lockedCells.has(cellKey(currentCells[i].row, currentCells[i].col))) {
+            clearActive();
+            data.element.classList.add("active");
+            data.input.focus();
+            return;
+        }
+    }
+}
+
+function clearActive() {
+    cellMap.forEach(d => d.element.classList.remove("active"));
+}
+
+function isWordComplete(word) {
+    return getWordCells(word).every(c => cellMap.get(cellKey(c.row, c.col))?.input.value !== "");
+}
+
+function checkWord() {
+    if (!selectedWord) return;
+    if (!isWordComplete(selectedWord)) {
+        result.textContent = "Te faltan letras por llenar.";
+        result.className = "result bad";
+        return;
+    }
+
+    attempts++;
+    attemptCount.textContent = attempts;
+
+    const cells = getWordCells(selectedWord);
+    let allCorrect = true;
+
+    cells.forEach((cell, idx) => {
+        const data = cellMap.get(cellKey(cell.row, cell.col));
+        if (!data) return;
+
+        if (data.input.value.toUpperCase() === selectedWord.answer[idx]) {
+            data.element.classList.add("correct");
+        } else {
+            data.element.classList.add("incorrect");
+            allCorrect = false;
+        }
+    });
+
+    if (allCorrect) {
+        result.textContent = "¡Bien! Palabra resuelta.";
+        result.className = "result good";
+        completedWords.add(selectedWord.id);
+        completed++;
+        completedCount.textContent = completed;
+
+        cells.forEach(cell => {
+            const key = cellKey(cell.row, cell.col);
+            lockedCells.add(key);
+            const data = cellMap.get(key);
+            if (data) {
+                data.element.classList.add("locked");
+                data.input.readOnly = true;
+            }
+        });
+
+        const clue = document.querySelector(`.clue[data-id="${selectedWord.id}"]`);
+        if (clue) {
+            clue.classList.add("completed");
+            const time = clue.querySelector(".clue-time");
+            if (time) time.textContent = `✓ Lista en ${formatTime(elapsedSeconds)}`;
+        }
+
+        if (completed === WORDS.length) finishGame();
+        return;
+    }
+
+    result.textContent = "Nop, hay errores. Se borran las fallas para que reintentes.";
+    result.className = "result bad";
+    setTimeout(() => clearIncorrectAttempt(selectedWord), 1000);
+}
+
+function clearIncorrectAttempt(word) {
+    getWordCells(word).forEach(cell => {
+        const key = cellKey(cell.row, cell.col);
+        if (lockedCells.has(key)) return;
+
+        const data = cellMap.get(key);
+        if (data) {
+            data.input.value = "";
+            data.element.classList.remove("correct", "incorrect");
+        }
+    });
+    selectWord(word);
+}
+
+function buildClues() {
+    acrossClues.innerHTML = "";
+    downClues.innerHTML = "";
+
+    WORDS.forEach(word => {
+        const clue = document.createElement("div");
+        clue.className = "clue";
+        clue.dataset.id = word.id;
+
+        clue.innerHTML = `
+            <button class="clue-play" type="button">▶</button>
+            <div>
+                <div class="clue-title">
+                    <span class="clue-number">${word.number}.</span>
+                    <span class="clue-direction">${word.direction === "across" ? "Horizontal" : "Vertical"}</span>
+                </div>
+                <div class="clue-text">${word.clue}</div>
+                <div class="clue-time"></div>
+            </div>
+        `;
+
+        clue.querySelector(".clue-play").addEventListener("click", e => {
+            e.stopPropagation();
+            selectWord(word);
+            playAudio();
+        });
+
+        clue.addEventListener("click", () => selectWord(word));
+        (word.direction === "across" ? acrossClues : downClues).appendChild(clue);
+    });
+}
+
+function prepareAudioContext() {
+    try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") audioContext.resume();
+    } catch (e) {}
+}
+
+function playTick() {
+    if (!audioContext) return;
+    try {
+        const now = audioContext.currentTime;
+        tickToggle = !tickToggle;
+
+        const sub = audioContext.createOscillator();
+        const subGain = audioContext.createGain();
+        sub.type = "sine";
+        sub.frequency.setValueAtTime(65, now);
+        sub.frequency.exponentialRampToValueAtTime(20, now + 0.15);
+        subGain.gain.setValueAtTime(0.45, now);
+        subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        sub.connect(subGain);
+        subGain.connect(audioContext.destination);
+        sub.start(now);
+        sub.stop(now + 0.15);
+
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = "sine";
+        
+        const freq = tickToggle ? 900 : 650;
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.035);
+        
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.start(now);
+        osc.stop(now + 0.035);
+    } catch (e) {}
+}
+
+function playAudio() {
+    if (!selectedWord) {
+        selectWord(WORDS[0]);
+    }
+
+    prepareAudioContext();
+    if (!timerStarted) startGlobalTimer();
+
+    listens++;
+    listenCount.textContent = listens;
+
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio.src = selectedWord.audioUrl;
+
+    clipBarFill.style.width = "0%";
+    clipTime.textContent = "0:00 / 0:00";
+
+    currentAudio.play().then(() => {
+        result.textContent = "";
+        result.className = "result";
+    }).catch(err => {
+        result.textContent = `No se encontró el archivo "${selectedWord.audioUrl}".`;
+        result.className = "result bad";
+    });
+}
+
+playMain.addEventListener("click", playAudio);
+
+function startGlobalTimer() {
+    if (timerStarted) return;
+    timerStarted = true;
+    globalTimer.classList.add("running");
+    timerInterval = setInterval(() => {
+        elapsedSeconds++;
+        globalTimer.textContent = formatTime(elapsedSeconds);
+        playTick();
+    }, 1000);
+}
+
+function stopGlobalTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    globalTimer.classList.remove("running");
+}
+
+function finishGame() {
+    stopGlobalTimer();
+    finishTime.textContent = formatTime(elapsedSeconds);
+    finish.classList.add("show");
+    result.textContent = `🎸 ¡Completado! Tiempo total: ${formatTime(elapsedSeconds)}`;
+    result.className = "result good";
+}
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatSeconds(seconds) {
+    if (isNaN(seconds)) return "0:00";
+    const total = Math.floor(seconds);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function resetGame() {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+
+    stopGlobalTimer();
+    timerStarted = false;
+    elapsedSeconds = 0;
+    globalTimer.textContent = "00:00";
+
+    attempts = listens = completed = 0;
+    completedWords.clear();
+    lockedCells.clear();
+
+    attemptCount.textContent = "0";
+    listenCount.textContent = "0";
+    completedCount.textContent = "0";
+
+    selectedWord = null;
+    currentCells = [];
+    boardStatus.textContent = "Haz clic en una pista para empezar";
+    songName.textContent = "Selecciona una pista";
+    result.textContent = "";
+    result.className = "result";
+    finish.classList.remove("show");
+    clipBarFill.style.width = "0%";
+    clipTime.textContent = "0:00 / 0:00";
+
+    buildBoard();
+    document.querySelectorAll(".clue").forEach(c => {
+        c.classList.remove("active", "completed");
+        const time = c.querySelector(".clue-time");
+        if (time) time.textContent = "";
+    });
+}
+
+resetButton.addEventListener("click", resetGame);
+
+buildBoard();
+buildClues();
+</script>
+</body>
+</html>
